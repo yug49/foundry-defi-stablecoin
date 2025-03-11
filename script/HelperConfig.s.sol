@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.18;
 
-import {Script} from "../lib/forge-std/src/Script.sol";
+import {Script, console} from "../lib/forge-std/src/Script.sol";
 import {MockV3Aggregator} from "../test/mocks/MockV3Aggregator.sol";
 import {ERC20Mock} from "../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
@@ -26,12 +26,12 @@ contract HelperConfig is Script {
             activeNetworkConfig = getSepoliaEthConfig();
         }
         else{
-            getOrCreateAnvilEthConfig();
+            activeNetworkConfig = getOrCreateAnvilEthConfig();
         }
     }
 
-    function getSepoliaEthConfig() public view returns(NetworkConfig memory) {
-        return NetworkConfig({
+    function getSepoliaEthConfig() public view returns(NetworkConfig memory sepoliaEthConfig) {
+        sepoliaEthConfig = NetworkConfig({
             wethUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
             wbtcUsdPriceFeed: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43,
             weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
@@ -40,7 +40,7 @@ contract HelperConfig is Script {
         });
     }
 
-    function getOrCreateAnvilEthConfig() public returns(NetworkConfig memory) {
+    function getOrCreateAnvilEthConfig() public returns(NetworkConfig memory anvilEthConfig) {
         if(activeNetworkConfig.wethUsdPriceFeed != address(0)){
             return activeNetworkConfig;
         }
@@ -52,12 +52,14 @@ contract HelperConfig is Script {
         ERC20Mock wbtcMock = new ERC20Mock("WBTC", "WBTC", msg.sender, 1000e8);
         vm.stopBroadcast();
 
-        return NetworkConfig({
+
+        anvilEthConfig = NetworkConfig({
             wethUsdPriceFeed: address(ethUsdPriceFeed),
             wbtcUsdPriceFeed: address(btcUsdPriceFeed),
             weth: address(wethMock),
             wbtc: address(wbtcMock),
             deployerKey: DEFAULT_ANVIL_KEY
         });
+
     }
 }
