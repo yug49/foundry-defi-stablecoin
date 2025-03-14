@@ -8,6 +8,7 @@ import {HelperConfig} from "../../script/HelperConfig.s.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
 import {ERC20Mock} from "../../lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
+import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
 
 contract DSCEngineTest is Test {
     DeployDSC deployer;
@@ -19,6 +20,7 @@ contract DSCEngineTest is Test {
     address weth;
     address wbtc;
     address public USER = makeAddr("user");
+    address public LIQUIDATOR = makeAddr("liquidator");
     uint256 public constant AMOUNT_COLLATERAL = 10 ether;
     uint256 public constant STARTING_ERC20_BALANCE = 10 ether;
     uint256 public constant INTITIAL_MINT = 1 ether;
@@ -127,6 +129,7 @@ contract DSCEngineTest is Test {
 
     function testHealthFactor() public depositedCollateral mintDsc{
         // assertEq(dsce.getHealthFactor(USER), 
+        console.log(dsce.getHealthFactor(USER));
         assertEq(dsce.getHealthFactor(USER), HEALTH_FACTOR);
     }
 
@@ -204,9 +207,62 @@ contract DSCEngineTest is Test {
 
     /* liquidate */
 
-    function testLiquidateU() public depositedCollateral mintDsc{
-        
+    function testLiquidate() public depositedCollateral{
+        // Liquidator setup
+        ERC20Mock(weth).mint(LIQUIDATOR, 200 ether);
+        vm.startPrank(LIQUIDATOR);
+        ERC20Mock(weth).approve(address(dsce), 200 ether);
+        dsce.depositCollateral(weth, 200 ether);
+        dsce.mintDsc(100 ether);
+        vm.stopPrank();
+
+        // depositing 10 ether = 2000 * 10 = 20,000 usd
+        // minting 100 ether = 100 * 1 = 100 usd
+
+        // Mint more DSC 
+        vm.prank(USER);
+        dsce.mintDsc(100 ether); // Mint 100 DSC (pegged to $100)
+
+        // Simulate a price drop to make the user undercollateralized
+        MockV3Aggregator(ethUsdPriceFeed).updateAnswer(15e8); // Price dropped to $15 (from $2000) -> user's collateral = 150 usd against 100 usd dsc
+
+        // new health factor = 0.75
+        uint256 healthFactorBefore = dsce.getHealthFactor(USER);
+        console.log("Health Factor before Liquidation:", healthFactorBefore);
+
+        uint256 debtToClear = 100 ether;    //100 dsc
+
+        // Liquidator approves DSCEngine to spend their DSC tokens
+        vm.startPrank(LIQUIDATOR);
+        dsc.approve(address(dsce), debtToClear); // Approve 100 DSC for liquidation
+
+        console.log("before liq balance: ", dsce.getCollateralTokenAmount(LIQUIDATOR, weth));
+
+        // Liquidator liquidates the user
+        dsce.liquidate(weth, USER, debtToClear); // Liquidate 100 DSC
+        vm.stopPrank();
+
+        // Check user's health factor after liquidation
+        uint256 healthFactorAfter = dsce.getHealthFactor(USER);
+        console.log("Health Factor After Liquidation:", healthFactorAfter);
+        assertGt(healthFactorAfter, healthFactorBefore, "Health factor should improve after liquidation");
+
+        // Check liquidator's collateral balance
+        console.log("after liq balance: ", dsce.getCollateralTokenAmount(LIQUIDATOR, weth));
+        uint256 liquidatorCollateralBalance = dsce.getCollateralTokenAmount(LIQUIDATOR, weth);
+        uint256 initialMint = 200 ether;
+        uint256 redeemedWeth = (debtToClear/15e8) * 1e8;
+        uint256 bonus = redeemedWeth/10;
+
+        assertEq(liquidatorCollateralBalance, initialMint + redeemedWeth + bonus, "Liquidators balance should be his initial + redeemed + 10 % bonus of redeemed collateral");
+
+        // Check user's DSC balance
+        uint256 userDscBalance = dsce.getDscOfAUser(USER);
+        assertEq(userDscBalance, 0, "User's DSC balance should be zero after liquidation");
+
+        // Check user's collateral balance
+        uint256 userCollateralBalance = dsce.getCollateralTokenAmount(USER, weth);
+        assertLt(userCollateralBalance, AMOUNT_COLLATERAL, "User's collateral balance should be reduced");
+
     }
-
-
 }

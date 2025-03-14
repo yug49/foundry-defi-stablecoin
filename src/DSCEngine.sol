@@ -44,7 +44,7 @@ contract DSCEngine is ReentrancyGuard {
     address[] private s_collateralTokens;
 
     DecentralizedStableCoin private i_dsc;
-    uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
+    uint256 private constant ADDITIONAL_FEED_PRECISION = 1e8;
     uint256 private constant PRECISION = 1e18;
     uint256 private constant LIQUIDATION_THRESHOLD = 50; //200% overcollateralized
     uint256 private constant LIQUIDATION_PRECISION = 100;
@@ -203,12 +203,13 @@ contract DSCEngine is ReentrancyGuard {
         // debtToCover = $100
         // $100 of DSC == ??? ETH?
         // 0.05 ETH
-        uint256 tokenAmountFromDebtCovered = getTokenAmountFromUsd(collateral, debtToCover);
+        uint256 collateralTokenFromDebtCovered = getTokenAmountFromUsd(collateral, debtToCover);
         // And give them a 10% bonus
         // So we are giving the liquidator $110 of weth from 100 dsc
         // we should implement a featur to liquidate in the event the protocol is insolvent and sweep extra amount into a treasury
-        uint256 bonusCollateral = (tokenAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
-        uint256 totalCollateralToRedeem = tokenAmountFromDebtCovered + bonusCollateral;
+        uint256 bonusCollateral = (collateralTokenFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
+        uint256 totalCollateralToRedeem = collateralTokenFromDebtCovered + bonusCollateral;
+        console.log("total collateral to redeem :", totalCollateralToRedeem);
         _redeemCollateral(user, msg.sender, collateral, totalCollateralToRedeem);
         // We need to burn the DSC
         _burnDsc(debtToCover, user, msg.sender);
@@ -235,7 +236,11 @@ contract DSCEngine is ReentrancyGuard {
     function _redeemCollateral(address from, address to, address tokenCollateralAddress, uint256 amountCollateral)
         private
     {
-        s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
+        if(from == to) s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
+        else{
+            s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
+            s_collateralDeposited[to][tokenCollateralAddress] += amountCollateral;
+        }
         emit CollateralRedeemed(from, to, tokenCollateralAddress, amountCollateral);
 
         bool success = IERC20(tokenCollateralAddress).transfer(to, amountCollateral);
@@ -301,14 +306,15 @@ contract DSCEngine is ReentrancyGuard {
         (, int256 price,,,) = priceFeed.latestRoundData();
         // if 1 eth = 1000 usd
         // then the returned value from the cl will be 1000 * 1e8
-        return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+        return (uint256(price) * amount) / ADDITIONAL_FEED_PRECISION;
     }
 
-    function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
+    function getTokenAmountFromUsd(address token, uint256 debtDsc) public view returns (uint256) {
         //Price of Eth (token)
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
-        return (usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
+        
+        return (debtDsc / uint256(price)) * ADDITIONAL_FEED_PRECISION;
     }
 
     function getAccountInformation(address user)
