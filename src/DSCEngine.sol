@@ -209,7 +209,6 @@ contract DSCEngine is ReentrancyGuard {
         // we should implement a featur to liquidate in the event the protocol is insolvent and sweep extra amount into a treasury
         uint256 bonusCollateral = (collateralTokenFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
         uint256 totalCollateralToRedeem = collateralTokenFromDebtCovered + bonusCollateral;
-        console.log("total collateral to redeem :", totalCollateralToRedeem);
         _redeemCollateral(user, msg.sender, collateral, totalCollateralToRedeem);
         // We need to burn the DSC
         _burnDsc(debtToCover, user, msg.sender);
@@ -236,8 +235,6 @@ contract DSCEngine is ReentrancyGuard {
     function _redeemCollateral(address from, address to, address tokenCollateralAddress, uint256 amountCollateral)
         private
     {   
-        console.log("collateral Deposited of ", from, " is : ", s_collateralDeposited[from][tokenCollateralAddress]);
-        console.log("redeeming: ", amountCollateral);
         if(from == to) s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
         else{
             s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
@@ -272,7 +269,6 @@ contract DSCEngine is ReentrancyGuard {
      */
     function _burnDsc(uint256 amountDscToBurn, address onBehalfOf, address dscFrom) private {
         s_DSCMinted[onBehalfOf] -= amountDscToBurn;
-        console.log("hello");
         bool success = i_dsc.transferFrom(dscFrom, address(this), amountDscToBurn);
         if (!success) revert DSCEngine__TransferFailed();
 
@@ -315,8 +311,9 @@ contract DSCEngine is ReentrancyGuard {
         //Price of Eth (token)
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
+
         
-        return (debtDsc / uint256(price)) * ADDITIONAL_FEED_PRECISION;
+        return (debtDsc/uint256(price))* ADDITIONAL_FEED_PRECISION;
     }
 
     function getAccountInformation(address user)
@@ -337,5 +334,34 @@ contract DSCEngine is ReentrancyGuard {
 
     function getCollateralTokens() external view returns(address[] memory) {
         return s_collateralTokens;
+    }
+
+    function getMaxCollateralToRedeem(address user, address token) external view returns(uint256) {
+        uint256 totalDscMinted = s_DSCMinted[user];
+        uint256 collateralValue = s_collateralDeposited[user][token];
+        if(collateralValue == 0 ) return 0;
+        uint256 totalAccountCollateralInUsd = getAccountCollateralValueInUsd(user);
+        uint256 collateralThatShouldBeThereInUsd = totalDscMinted * 2;
+        uint256 collateralTokensThatShouldBeThere = getTokenAmountFromUsd(token, collateralThatShouldBeThereInUsd);
+        
+        if(collateralValue > collateralTokensThatShouldBeThere) return collateralValue - collateralTokensThatShouldBeThere - 1;
+        
+        uint256 usdValueOfAnotherCollateralToken = totalAccountCollateralInUsd - getUsdValue(token, collateralValue);
+        console.log("here");
+        console.log("collateralThatShouldBeThereInUsd: ", collateralThatShouldBeThereInUsd);
+        console.log("usdValueOfAnotherCollateralToken: ", usdValueOfAnotherCollateralToken);
+        if(usdValueOfAnotherCollateralToken > collateralThatShouldBeThereInUsd) return s_collateralDeposited[user][token];
+        uint256 usdOfTokenMustBeThere = collateralThatShouldBeThereInUsd - usdValueOfAnotherCollateralToken;
+        uint256 tokenMustBeThere = getTokenAmountFromUsd(token, usdOfTokenMustBeThere);
+        
+        return collateralValue - tokenMustBeThere - 1;
+        
+        // if(totalDscMinted == 0) return collateralValue;
+        // if(collateralValue == 0 ) return 0;
+        // 
+        // 
+        // 
+        // console.log("collateralThatShouldBeThere: ", collateralThatShouldBeThere);
+        // return collateralValue - collateralThatShouldBeThere - 1;
     }
 }
