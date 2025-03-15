@@ -114,7 +114,7 @@ contract DSCEngineTest is Test {
 
     /* Mint Dsc and HealthFactor */
     function testIfNoMintThenHealthFactorIsZero() public depositedCollateral{
-        assertEq(dsce.getHealthFactor(USER), 100);
+        assertEq(dsce.getHealthFactor(USER), type(uint256).max);
     }
 
     modifier mintDsc(){

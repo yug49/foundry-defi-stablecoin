@@ -235,7 +235,9 @@ contract DSCEngine is ReentrancyGuard {
 
     function _redeemCollateral(address from, address to, address tokenCollateralAddress, uint256 amountCollateral)
         private
-    {
+    {   
+        console.log("collateral Deposited of ", from, " is : ", s_collateralDeposited[from][tokenCollateralAddress]);
+        console.log("redeeming: ", amountCollateral);
         if(from == to) s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
         else{
             s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
@@ -258,7 +260,7 @@ contract DSCEngine is ReentrancyGuard {
         // total Collateral value
 
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        if (totalDscMinted == 0) return MAX_HEALTHFACTOR;
+        if (totalDscMinted == 0) return type(uint256).max;
         uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
 
         return (collateralAdjustedForThreshold / totalDscMinted);
@@ -331,5 +333,9 @@ contract DSCEngine is ReentrancyGuard {
 
     function getCollateralTokenAmount(address user, address token) external view returns (uint256 amount) {
         return s_collateralDeposited[user][token];
+    }
+
+    function getCollateralTokens() external view returns(address[] memory) {
+        return s_collateralTokens;
     }
 }
