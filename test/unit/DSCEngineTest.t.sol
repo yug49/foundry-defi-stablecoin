@@ -265,4 +265,5 @@ contract DSCEngineTest is Test {
         assertLt(userCollateralBalance, AMOUNT_COLLATERAL, "User's collateral balance should be reduced");
 
     }
+
 }

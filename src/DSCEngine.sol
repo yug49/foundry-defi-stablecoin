@@ -8,6 +8,7 @@ import {IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20
 import {AggregatorV3Interface} from
     "../lib/chainlink-brownie-contracts/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {console} from "../lib/forge-std/src/console.sol";
+import {OracleLib} from "./libraries/OracleLib.sol";
 
 /**
  * @title DSCEngine
@@ -37,6 +38,8 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__HealthFactorNotImproved();
     error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
 
+    using OracleLib for AggregatorV3Interface; 
+
     /* State Variables */
     mapping(address token => address priceFeed) private s_priceFeeds; //tokenToPriceFeed
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
@@ -51,6 +54,8 @@ contract DSCEngine is ReentrancyGuard {
     uint256 private constant MIN_HEALTH_FACTOR = 1;
     uint256 private constant LIQUIDATION_BONUS = 10; //10%
     uint256 private constant MAX_HEALTHFACTOR = 100;
+    uint256 private constant EXTRA_PRICE_FEED_PRECISION = 1e10;
+    uint8 private constant USD_PRICE_DEMIMALS = 8;
 
     /* Events */
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
@@ -161,7 +166,9 @@ contract DSCEngine is ReentrancyGuard {
      * @notice they must have more collateral value than min threshold
      */
     function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) nonReentrant {
+        
         s_DSCMinted[msg.sender] += amountDscToMint;
+        
         _revertIfHealthFactorIsBroken(msg.sender);
         bool minted = i_dsc.mint(msg.sender, amountDscToMint);
         if (!minted) {
@@ -234,9 +241,10 @@ contract DSCEngine is ReentrancyGuard {
 
     function _redeemCollateral(address from, address to, address tokenCollateralAddress, uint256 amountCollateral)
         private
-    {   
-        if(from == to) s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
-        else{
+    {
+        if (from == to) {
+            s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
+        } else {
             s_collateralDeposited[from][tokenCollateralAddress] -= amountCollateral;
             s_collateralDeposited[to][tokenCollateralAddress] += amountCollateral;
         }
@@ -287,21 +295,20 @@ contract DSCEngine is ReentrancyGuard {
         return _healthFactor(user);
     }
 
-    function getAccountCollateralValueInUsd(address user) public view returns (uint256 totalCollateralValueInUse) {
-        
+    function getAccountCollateralValueInUsd(address user) public view returns (uint256 totalCollateralValueInUsd) {
         // loop through each collateral token, get the amount they have deposited, and map it to the price, to get the usd value
         for (uint256 i = 0; i < s_collateralTokens.length; i++) {
             address token = s_collateralTokens[i];
             uint256 amount = s_collateralDeposited[user][token];
-            totalCollateralValueInUse += getUsdValue(token, amount);
+            totalCollateralValueInUsd += getUsdValue(token, amount);
         }
 
-        return totalCollateralValueInUse;
+        return totalCollateralValueInUsd;
     }
 
     function getUsdValue(address token, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.staleCheckLatestRoundData();
         // if 1 eth = 1000 usd
         // then the returned value from the cl will be 1000 * 1e8
         return (uint256(price) * amount) / ADDITIONAL_FEED_PRECISION;
@@ -310,10 +317,9 @@ contract DSCEngine is ReentrancyGuard {
     function getTokenAmountFromUsd(address token, uint256 debtDsc) public view returns (uint256) {
         //Price of Eth (token)
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.staleCheckLatestRoundData();
 
-        
-        return (debtDsc/uint256(price))* ADDITIONAL_FEED_PRECISION;
+        return (debtDsc / uint256(price)) * ADDITIONAL_FEED_PRECISION;
     }
 
     function getAccountInformation(address user)
@@ -332,36 +338,26 @@ contract DSCEngine is ReentrancyGuard {
         return s_collateralDeposited[user][token];
     }
 
-    function getCollateralTokens() external view returns(address[] memory) {
+    function getCollateralTokens() external view returns (address[] memory) {
         return s_collateralTokens;
     }
 
-    function getMaxCollateralToRedeem(address user, address token) external view returns(uint256) {
+    function getMaxCollateralToRedeem(address user, address token) external view returns (uint256) {
         uint256 totalDscMinted = s_DSCMinted[user];
-        uint256 collateralValue = s_collateralDeposited[user][token];
-        if(collateralValue == 0 ) return 0;
         uint256 totalAccountCollateralInUsd = getAccountCollateralValueInUsd(user);
-        uint256 collateralThatShouldBeThereInUsd = totalDscMinted * 2;
-        uint256 collateralTokensThatShouldBeThere = getTokenAmountFromUsd(token, collateralThatShouldBeThereInUsd);
+        uint256 collateralMustBeThere = totalDscMinted * 2;
         
-        if(collateralValue > collateralTokensThatShouldBeThere) return collateralValue - collateralTokensThatShouldBeThere - 1;
+        uint256 extraCollateral = totalAccountCollateralInUsd - collateralMustBeThere;
         
-        uint256 usdValueOfAnotherCollateralToken = totalAccountCollateralInUsd - getUsdValue(token, collateralValue);
-        console.log("here");
-        console.log("collateralThatShouldBeThereInUsd: ", collateralThatShouldBeThereInUsd);
-        console.log("usdValueOfAnotherCollateralToken: ", usdValueOfAnotherCollateralToken);
-        if(usdValueOfAnotherCollateralToken > collateralThatShouldBeThereInUsd) return s_collateralDeposited[user][token];
-        uint256 usdOfTokenMustBeThere = collateralThatShouldBeThereInUsd - usdValueOfAnotherCollateralToken;
-        uint256 tokenMustBeThere = getTokenAmountFromUsd(token, usdOfTokenMustBeThere);
+        uint256 extraTokens = getTokenAmountFromUsd(token, extraCollateral);
+        uint256 totalTokens = s_collateralDeposited[user][token];
+        if(extraTokens > totalTokens) return 0;
+        return extraTokens;
+
+    }
+
+    function getCollateralTokenPriceFeed(address token) external view returns (address) {
         
-        return collateralValue - tokenMustBeThere - 1;
-        
-        // if(totalDscMinted == 0) return collateralValue;
-        // if(collateralValue == 0 ) return 0;
-        // 
-        // 
-        // 
-        // console.log("collateralThatShouldBeThere: ", collateralThatShouldBeThere);
-        // return collateralValue - collateralThatShouldBeThere - 1;
+        return s_priceFeeds[token];
     }
 }

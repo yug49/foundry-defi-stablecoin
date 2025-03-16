@@ -8,7 +8,7 @@
 
 pragma solidity ^0.8.18;
 
-import {Test} from "../../lib/forge-std/src/Test.sol";
+import {Test, console} from "../../lib/forge-std/src/Test.sol";
 import {StdInvariant} from "../../lib/forge-std/src/StdInvariant.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
@@ -26,6 +26,8 @@ contract Invariants is StdInvariant, Test{
     address weth;
     address wbtc;
     Handler handler;
+    uint256 public constant TEST_AMOUNT = 100;
+    
 
     function setUp() external{
         deployer = new DeployDSC();
@@ -47,6 +49,31 @@ contract Invariants is StdInvariant, Test{
         uint256 wethValue = dsce.getUsdValue(weth, totalWethDeposited);
         uint256 wbtcValue = dsce.getUsdValue(wbtc, totalWbtcDeposited);
 
+        console.log("weth value:", wethValue);
+        console.log("wbtc value:", wbtcValue);
+        console.log("total supply:", totalSupply);
+        console.log("time mint called:", handler.timesMintIsCalled());
+
+
+
         assert(wethValue + wbtcValue >= totalSupply);
+    }
+
+    function invariant_gettersShoulNotRevert() public view{
+        dsce.getHealthFactor(msg.sender);
+        dsce.getAccountCollateralValueInUsd(msg.sender);
+        dsce.getUsdValue(weth, TEST_AMOUNT);
+        dsce.getUsdValue(wbtc, TEST_AMOUNT);
+        dsce.getTokenAmountFromUsd(weth, TEST_AMOUNT);
+        dsce.getTokenAmountFromUsd(wbtc, TEST_AMOUNT);
+        dsce.getAccountInformation(msg.sender);
+        dsce.getDscOfAUser(msg.sender);
+        dsce.getCollateralTokenAmount(msg.sender, wbtc);
+        dsce.getCollateralTokenAmount(msg.sender, weth);
+        dsce.getCollateralTokens();
+        dsce.getMaxCollateralToRedeem(msg.sender, wbtc);
+        dsce.getMaxCollateralToRedeem(msg.sender, weth);
+        dsce.getCollateralTokenPriceFeed(wbtc);
+        dsce.getCollateralTokenPriceFeed(weth);
     }
 }
