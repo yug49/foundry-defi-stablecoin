@@ -22,15 +22,14 @@ contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
 
     constructor() {
-        if(block.chainid == 11155111) {
+        if (block.chainid == 11155111) {
             activeNetworkConfig = getSepoliaEthConfig();
-        }
-        else{
+        } else {
             activeNetworkConfig = getOrCreateAnvilEthConfig();
         }
     }
 
-    function getSepoliaEthConfig() public view returns(NetworkConfig memory sepoliaEthConfig) {
+    function getSepoliaEthConfig() public view returns (NetworkConfig memory sepoliaEthConfig) {
         sepoliaEthConfig = NetworkConfig({
             wethUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
             wbtcUsdPriceFeed: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43,
@@ -40,8 +39,8 @@ contract HelperConfig is Script {
         });
     }
 
-    function getOrCreateAnvilEthConfig() public returns(NetworkConfig memory anvilEthConfig) {
-        if(activeNetworkConfig.wethUsdPriceFeed != address(0)){
+    function getOrCreateAnvilEthConfig() public returns (NetworkConfig memory anvilEthConfig) {
+        if (activeNetworkConfig.wethUsdPriceFeed != address(0)) {
             return activeNetworkConfig;
         }
 
@@ -52,7 +51,6 @@ contract HelperConfig is Script {
         ERC20Mock wbtcMock = new ERC20Mock("WBTC", "WBTC", msg.sender, 1000e8);
         vm.stopBroadcast();
 
-
         anvilEthConfig = NetworkConfig({
             wethUsdPriceFeed: address(ethUsdPriceFeed),
             wbtcUsdPriceFeed: address(btcUsdPriceFeed),
@@ -60,6 +58,5 @@ contract HelperConfig is Script {
             wbtc: address(wbtcMock),
             deployerKey: DEFAULT_ANVIL_KEY
         });
-
     }
 }

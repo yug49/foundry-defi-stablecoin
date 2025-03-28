@@ -38,7 +38,7 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__HealthFactorNotImproved();
     error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
 
-    using OracleLib for AggregatorV3Interface; 
+    using OracleLib for AggregatorV3Interface;
 
     /* State Variables */
     mapping(address token => address priceFeed) private s_priceFeeds; //tokenToPriceFeed
@@ -166,9 +166,8 @@ contract DSCEngine is ReentrancyGuard {
      * @notice they must have more collateral value than min threshold
      */
     function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) nonReentrant {
-        
         s_DSCMinted[msg.sender] += amountDscToMint;
-        
+
         _revertIfHealthFactorIsBroken(msg.sender);
         bool minted = i_dsc.mint(msg.sender, amountDscToMint);
         if (!minted) {
@@ -346,18 +345,16 @@ contract DSCEngine is ReentrancyGuard {
         uint256 totalDscMinted = s_DSCMinted[user];
         uint256 totalAccountCollateralInUsd = getAccountCollateralValueInUsd(user);
         uint256 collateralMustBeThere = totalDscMinted * 2;
-        
+
         uint256 extraCollateral = totalAccountCollateralInUsd - collateralMustBeThere;
-        
+
         uint256 extraTokens = getTokenAmountFromUsd(token, extraCollateral);
         uint256 totalTokens = s_collateralDeposited[user][token];
-        if(extraTokens > totalTokens) return 0;
+        if (extraTokens > totalTokens) return 0;
         return extraTokens;
-
     }
 
     function getCollateralTokenPriceFeed(address token) external view returns (address) {
-        
         return s_priceFeeds[token];
     }
 }
