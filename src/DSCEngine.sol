@@ -1,5 +1,26 @@
 //SPDX-License-Identifier: MIT
 
+// Layout of Contract:
+// version
+// imports
+// interfaces, libraries, contracts
+// errors
+// Type declarations
+// State variables
+// Events
+// Modifiers
+// Functions
+
+// Layout of Functions:
+// constructor
+// receive function (if exists)
+// fallback function (if exists)
+// external
+// public
+// internal
+// private
+// view & pure functions
+
 pragma solidity ^0.8.18;
 
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
@@ -40,13 +61,6 @@ contract DSCEngine is ReentrancyGuard {
 
     using OracleLib for AggregatorV3Interface;
 
-    /* State Variables */
-    mapping(address token => address priceFeed) private s_priceFeeds; //tokenToPriceFeed
-    mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
-    mapping(address user => uint256 amountDscMinted) private s_DSCMinted;
-    address[] private s_collateralTokens;
-
-    DecentralizedStableCoin private i_dsc;
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e8;
     uint256 private constant PRECISION = 1e18;
     uint256 private constant LIQUIDATION_THRESHOLD = 50; //200% overcollateralized
@@ -57,6 +71,13 @@ contract DSCEngine is ReentrancyGuard {
     uint256 private constant EXTRA_PRICE_FEED_PRECISION = 1e10;
     uint8 private constant USD_PRICE_DEMIMALS = 8;
 
+    /* State Variables */
+    mapping(address token => address priceFeed) private s_priceFeeds; //tokenToPriceFeed
+    mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
+    mapping(address user => uint256 amountDscMinted) private s_DSCMinted;
+    address[] private s_collateralTokens;
+    DecentralizedStableCoin private i_dsc;
+
     /* Events */
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
     event CollateralRedeemed(
@@ -65,7 +86,7 @@ contract DSCEngine is ReentrancyGuard {
 
     /* Modifiers */
     modifier moreThanZero(uint256 amount) {
-        if (amount == 0) {
+        if (amount <= 0) {
             revert DSCEngine__NeedMoreThanZeroAmount();
         }
         _;
@@ -137,7 +158,7 @@ contract DSCEngine is ReentrancyGuard {
     function redeemCollateralForDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToBurn)
         external
     {
-        burnDsc(amountDscToBurn);
+        _burnDsc(amountDscToBurn, msg.sender, msg.sender);
         redeemCollateral(tokenCollateralAddress, amountCollateral);
         // these functions already check health factor
     }
@@ -175,7 +196,7 @@ contract DSCEngine is ReentrancyGuard {
         }
     }
 
-    function burnDsc(uint256 amount) public moreThanZero(amount) {
+    function burnDsc(uint256 amount) external moreThanZero(amount) {
         _burnDsc(amount, msg.sender, msg.sender);
         _revertIfHealthFactorIsBroken(msg.sender); // I don't think this line will ever hit...
     }
@@ -277,7 +298,7 @@ contract DSCEngine is ReentrancyGuard {
     function _burnDsc(uint256 amountDscToBurn, address onBehalfOf, address dscFrom) private {
         s_DSCMinted[onBehalfOf] -= amountDscToBurn;
         bool success = i_dsc.transferFrom(dscFrom, address(this), amountDscToBurn);
-        if (!success) revert DSCEngine__TransferFailed();
+        if (!success) revert DSCEngine__TransferFailed(); // unreachable
 
         i_dsc.burn(amountDscToBurn);
     }
@@ -310,6 +331,7 @@ contract DSCEngine is ReentrancyGuard {
         (, int256 price,,,) = priceFeed.staleCheckLatestRoundData();
         // if 1 eth = 1000 usd
         // then the returned value from the cl will be 1000 * 1e8
+        // so we add the extra precision to the price
         return (uint256(price) * amount) / ADDITIONAL_FEED_PRECISION;
     }
 

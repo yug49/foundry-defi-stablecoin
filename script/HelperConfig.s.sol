@@ -33,8 +33,8 @@ contract HelperConfig is Script {
         sepoliaEthConfig = NetworkConfig({
             wethUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
             wbtcUsdPriceFeed: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43,
-            weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            wbtc: 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599,
+            weth: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81,
+            wbtc: 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
     }

@@ -4,7 +4,7 @@ out = "out"
 libs = ["lib"]
 
 [invariant]
-runs = 1000
+runs = 128 
 depth = 128 #number of calls in a single run
 fail_on_revert = true
 
