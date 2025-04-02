@@ -16,9 +16,9 @@ all: clean remove install update build
 clean  :; forge clean
 
 # Remove modules
-remove :; rm -rf .gitmodules && rm -rf .git/modules/* && rm -rf lib && touch .gitmodules && git add . && git commit -m "modules"
+remove :; rm -rf .gitmodules && rm -rf .git/modules/* && rm -rf lib/chainlink-brownie-contracts && rm -rf lib/forge-std && touch .gitmodules && git add . && git commit -m "modules"
 
-install :; forge install smartcontractkit/chainlink-brownie-contracts@1.3.0 --no-commit && forge install foundry-rs/forge-std@v1.9.6 --no-commit && forge install openzeppelin/openzeppelin-contracts@v5.2.0 --no-commit
+install :; forge install smartcontractkit/chainlink-brownie-contracts@1.3.0 --no-commit && forge install foundry-rs/forge-std@v1.9.6 --no-commit
 
 # Update Dependencies
 update:; forge update
