@@ -62,7 +62,7 @@ It is a smart contract project written in [Solidity](https://docs.soliditylang.o
 
 
 
-    ## Deployment
+## Deployment
 
 ### Deploy On a Local Network (Anvil Testnet)
 - To Deploy on a local network first run anvil on your local terminal in current directory by running coommmand: ` make anvil`.
